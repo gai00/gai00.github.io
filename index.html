@@ -1,0 +1,107 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <meta http-equiv="X-UA-Compatible" content="ie=edge">
+  <title>transform</title>
+  
+  <script type="text/javascript" src="https://cdnjs.cloudflare.com/ajax/libs/rxjs/5.5.2/Rx.js"></script>
+  
+  <style type="text/css">
+    body {
+      margin: 0;
+      padding: 0;
+      width: 100%;
+      height: 100%;
+      background-color: #dddddd;
+      overflow: hidden;
+    }
+  </style>
+</head>
+<body draggable="false">
+  <script type="text/javascript">
+    // ref: https://github.com/Reactive-Extensions/RxJS-DOM/blob/master/examples/RequestAnimationFrame/draw.js
+    // ref: https://css-tricks.com/animated-intro-rxjs/
+    window.addEventListener('load', (e) => {
+      const Rx = window.Rx;
+      
+      const {clientWidth, clientHeight} = document.documentElement;
+      
+      const canvas = document.createElement('canvas');
+      canvas.width = clientWidth;
+      canvas.height = clientHeight;
+      document.body.appendChild(canvas);
+      
+      const ctx = canvas.getContext('2d');
+      
+      const mouseMove$ = Rx.Observable
+      .fromEvent(canvas, 'mousemove')
+      .map((e) => ({
+        x: e.clientX,
+        y: e.clientY
+      }));
+      const touchMove$ = Rx.Observable
+      .fromEvent(canvas, 'touchmove')
+      .map((e) => ({
+        x: e.touches[0].clientX,
+        y: e.touches[0].clientY
+      }));
+      const move$ = Rx.Observable
+      .merge(mouseMove$, touchMove$);
+      
+      const animationFrame$ = Rx.Observable
+      .interval(0, Rx.Scheduler.animationFrame);
+      
+      function lerp(start, end) {
+        const dx = end.x - start.x;
+        const dy = end.y - start.y;
+        const rate = 0.05;
+        
+        return {
+          x: start.x + dx * rate,
+          y: start.y + dy * rate,
+          dx,
+          dy
+        };
+      }
+      
+      const smoothMove$ = animationFrame$
+      .withLatestFrom(move$, (tick, move) => move)
+      .scan(lerp);
+      
+      // 假設box為 50x50
+      const center = {
+        x: canvas.width / 2,
+        y: canvas.height / 2
+      };
+      
+      ctx.transform(1, 0, 0, 1, center.x, center.y);
+      
+      const {PI, sin, cos, atan2, sqrt} = Math;
+      function drawBox(pos) {
+        ctx.clearRect(-center.x, -center.y, canvas.width, canvas.height);
+        
+        let dx = pos.dx / 50;
+        let dy = pos.dy / 50;
+        let range = sqrt(dx * dx + dy * dy);
+        // ref: https://stackoverflow.com/questions/9614109/how-to-calculate-an-angle-from-points
+        let theta = atan2(dy, dx);
+        let angle = theta * 180 / PI;
+        // console.log(angle);
+        
+        ctx.save();
+        ctx.transform(cos(theta), sin(theta), -sin(theta), cos(theta), 0, 0);
+        ctx.transform(1 + range, 0, 0, 1 - range, 0, 0);
+        ctx.transform(1, 0, 0, 1, range * 100, 0);
+        ctx.transform(cos(-theta), sin(-theta), -sin(-theta), cos(-theta), 0, 0);
+        
+        ctx.fillRect(-25, -25, 50, 50);   // Draw a rectangle with default settings
+        ctx.restore();
+      }
+      
+      smoothMove$.subscribe(drawBox);
+    });
+  </script>
+</body>
+</html>
